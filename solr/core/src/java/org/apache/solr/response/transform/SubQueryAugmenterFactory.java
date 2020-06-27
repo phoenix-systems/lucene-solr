@@ -48,20 +48,20 @@ import org.apache.solr.search.TermsQParserPlugin;
 
 /**
  *
- * This transformer executes subquery per every result document. It must be given an unique name. 
- * There might be a few of them, eg <code>fl=*,foo:[subquery],bar:[subquery]</code>. 
- * Every [subquery] occurrence adds a field into a result document with the given name, 
- * the value of this field is a document list, which is a result of executing subquery using 
+ * This transformer executes subquery per every result document. It must be given an unique name.
+ * There might be a few of them, eg <code>fl=*,foo:[subquery],bar:[subquery]</code>.
+ * Every [subquery] occurrence adds a field into a result document with the given name,
+ * the value of this field is a document list, which is a result of executing subquery using
  * document fields as an input.
- * 
+ *
  * <h3>Subquery Parameters Shift</h3>
- * if subquery is declared as <code>fl=*,foo:[subquery]</code>, subquery parameters 
+ * if subquery is declared as <code>fl=*,foo:[subquery]</code>, subquery parameters
  * are prefixed with the given name and period. eg <br>
  * <code>q=*:*&amp;fl=*,foo:[subquery]&amp;foo.q=to be continued&amp;foo.rows=10&amp;foo.sort=id desc</code>
- * 
+ *
  * <h3>Document Field As An Input For Subquery Parameters</h3>
- * 
- * It's necessary to pass some document field value as a parameter for subquery. It's supported via 
+ *
+ * It's necessary to pass some document field value as a parameter for subquery. It's supported via
  * implicit <code>row.<i>fieldname</i></code> parameters, and can be (but might not only) referred via
  *  Local Parameters syntax.<br>
  * <code>q=namne:john&amp;fl=name,id,depts:[subquery]&amp;depts.q={!terms f=id v=$row.dept_id}&amp;depts.rows=10</code>
@@ -69,20 +69,20 @@ import org.apache.solr.search.TermsQParserPlugin;
  * <code> join ON emp.dept_id=dept.id </code><br>
  * Note, when document field has multiple values they are concatenated with comma by default, it can be changed by
  * <code>foo:[subquery separator=' ']</code> local parameter, this mimics {@link TermsQParserPlugin} to work smoothly with.
- * 
+ *
  * <h3>Cores And Collections In SolrCloud</h3>
  * use <code>foo:[subquery fromIndex=departments]</code> invoke subquery on another core on the same node, it's like
- *  {@link JoinQParserPlugin} for non SolrCloud mode. <b>But for SolrCloud</b> just (and only) <b>explicitly specify</b> 
+ *  {@link JoinQParserPlugin} for non SolrCloud mode. <b>But for SolrCloud</b> just (and only) <b>explicitly specify</b>
  * its' native parameters like <code>collection, shards</code> for subquery, eg<br>
  *  <code>q=*:*&amp;fl=*,foo:[subquery]&amp;foo.q=cloud&amp;foo.collection=departments</code>
  *
  * <h3>When used in Real Time Get</h3>
  * <p>
- * When used in the context of a Real Time Get, the <i>values</i> from each document that are used 
- * in the qubquery are the "real time" values (possibly from the transaction log), but the query 
- * itself is still executed against the currently open searcher.  Note that this means if a 
- * document is updated but not yet committed, an RTG request for that document that uses 
- * <code>[subquery]</code> could include the older (committed) version of that document, 
+ * When used in the context of a Real Time Get, the <i>values</i> from each document that are used
+ * in the qubquery are the "real time" values (possibly from the transaction log), but the query
+ * itself is still executed against the currently open searcher.  Note that this means if a
+ * document is updated but not yet committed, an RTG request for that document that uses
+ * <code>[subquery]</code> could include the older (committed) version of that document,
  * with differnet field values, in the subquery results.
  * </p>
  */
@@ -92,19 +92,19 @@ public class SubQueryAugmenterFactory extends TransformerFactory{
   public DocTransformer create(String field, SolrParams params, SolrQueryRequest req) {
 
     if (field.contains("[") || field.contains("]")) {
-      throw new SolrException(SolrException.ErrorCode.BAD_REQUEST, 
+      throw new SolrException(SolrException.ErrorCode.BAD_REQUEST,
           "please give an exlicit name for [subquery] column ie fl=relation:[subquery ..]");
     }
-    
+
     checkThereIsNoDupe(field, req.getContext());
-    
+
     String fromIndex = params.get("fromIndex");
     final SolrClient solrClient;
 
     solrClient = new EmbeddedSolrServer(req.getCore());
 
     SolrParams subParams = retainAndShiftPrefix(req.getParams(), field+".");
-    
+
 
     return new SubQueryAugmenter(solrClient, fromIndex, field,
         field,
@@ -123,11 +123,8 @@ public class SubQueryAugmenterFactory extends TransformerFactory{
       conflictMap = new HashMap<>();
       context.put(conflictMapKey, conflictMap);
     }
-    // check entry absence 
-    if (conflictMap.containsKey(field)) {
-      throw new SolrException(ErrorCode.BAD_REQUEST, 
-          "[subquery] name "+field+" is duplicated");
-    } else {
+    // check entry absence
+    if (!conflictMap.containsKey(field)) {
       conflictMap.put(field, true);
     }
   }
@@ -144,11 +141,11 @@ public class SubQueryAugmenterFactory extends TransformerFactory{
     }
     return out;
   }
-  
+
 }
 
 class SubQueryAugmenter extends DocTransformer {
-  
+
   private static final class Result extends ResultContext {
     private final SolrDocumentList docList;
     final SolrReturnFields justWantAllFields = new SolrReturnFields();
@@ -174,9 +171,9 @@ class SubQueryAugmenter extends DocTransformer {
 
     @Override
     public DocList getDocList() {
-      return new DocSlice((int)docList.getStart(), 
+      return new DocSlice((int)docList.getStart(),
           docList.size(), new int[0], new float[docList.size()],
-          (int) docList.getNumFound(), 
+          (int) docList.getNumFound(),
           docList.getMaxScore() == null ?  Float.NaN : docList.getMaxScore());
     }
 
@@ -199,7 +196,7 @@ class SubQueryAugmenter extends DocTransformer {
   /** project document values to prefixed parameters
    * multivalues are joined with a separator, it always return single value */
   static final class DocRowParams extends SolrParams {
-    
+
     final private SolrDocument doc;
     final private String prefixDotRowDot;
     final private String separator;
@@ -212,9 +209,9 @@ class SubQueryAugmenter extends DocTransformer {
 
     @Override
     public String[] getParams(String param) {
-      
+
       final Collection<Object> vals = mapToDocField(param);
-      
+
       if (vals != null) {
         StringBuilder rez = new StringBuilder();
         for (Iterator iterator = vals.iterator(); iterator.hasNext();) {
@@ -223,18 +220,18 @@ class SubQueryAugmenter extends DocTransformer {
           if (iterator.hasNext()) {
             rez.append(separator);
           }
-        } 
+        }
         return new String[]{rez.toString()};
       }
       return null;
     }
-    
-    
+
+
     @Override
     public String get(String param) {
-      
+
       final String[] aVal = this.getParams(param);
-      
+
       if (aVal != null) {
         assert aVal.length == 1 : "that's how getParams is written" ;
         return aVal[0];
@@ -244,29 +241,29 @@ class SubQueryAugmenter extends DocTransformer {
 
     /** @return null if prefix doesn't match, field is absent or empty */
     protected Collection<Object> mapToDocField(String param) {
-      
+
       if (param.startsWith(prefixDotRowDot)) {
         final String docFieldName = param.substring(prefixDotRowDot.length());
         final Collection<Object> vals = doc.getFieldValues(docFieldName);
-        
+
         if (vals == null || vals.isEmpty()) {
           return null;
         } else {
-          return vals; 
-        } 
+          return vals;
+        }
       }
       return null;
     }
-    
+
 
     protected String convertFieldValue(Object val) {
-      
+
       if (val instanceof IndexableField) {
         IndexableField f = (IndexableField)val;
         return f.stringValue();
       }
       return val.toString();
-      
+
     }
 
     @Override
@@ -284,7 +281,7 @@ class SubQueryAugmenter extends DocTransformer {
           final String fieldName = fieldNames.next();
           return prefixDotRowDot + fieldName;
         }
-        
+
       };
     }
 
@@ -311,10 +308,10 @@ class SubQueryAugmenter extends DocTransformer {
   public String getName() {
     return name;
   }
-  
+
   /**
-   * Returns false -- this transformer does use an IndexSearcher, but it does not (neccessarily) need 
-   * the searcher from the ResultContext of the document being returned.  Instead we use the current 
+   * Returns false -- this transformer does use an IndexSearcher, but it does not (neccessarily) need
+   * the searcher from the ResultContext of the document being returned.  Instead we use the current
    * "live" searcher for the specified core.
    */
   @Override
@@ -338,7 +335,7 @@ class SubQueryAugmenter extends DocTransformer {
           }
         }
       };
-      QueryResponse response = 
+      QueryResponse response =
           SolrRequestInfoSuspender.doInSuspension(subQuery);
 
       final SolrDocumentList docList = (SolrDocumentList) response.getResults();
@@ -352,25 +349,25 @@ class SubQueryAugmenter extends DocTransformer {
             docString.substring(0, Math.min(100, docString.length())), e.getCause());
     } finally {}
   }
-  
-  // look ma!! no hands.. 
+
+  // look ma!! no hands..
   final static class SolrRequestInfoSuspender extends SolrRequestInfo {
-    
+
     private SolrRequestInfoSuspender(SolrQueryRequest req, SolrQueryResponse rsp) {
       super(req, rsp);
     }
-    
+
     /** Suspends current SolrRequestInfo invoke the given action, and resumes then */
     static <T> T doInSuspension(Callable<T> action) throws Exception {
-     
+
       final SolrRequestInfo info = threadLocal.get();
       try {
         threadLocal.remove();
         return action.call();
       } finally {
-        setRequestInfo(info); 
+        setRequestInfo(info);
       }
     }
   }
-  
+
 }
